@@ -2,7 +2,7 @@
 
 This repository contains the HuMANet metabolite harmonization pipeline code, the bundled HuMANet library used for the initial lookup stage, and helper scripts to bootstrap the local PubChem SQLite database.
 
-Large reference resources are not stored in this repository. The non-PubChem databases are expected to be downloaded from a Zenodo record and placed in the HuMANet resource directory, while the PubChem SQLite database is built locally from the provided download and build scripts.
+Large reference resources are not stored in this repository. The non-PubChem databases are expected to be downloaded from the Zenodo record `10.5281/zenodo.22146911`, from where users can access the DBs, and placed in the HuMANet resource directory, while the PubChem SQLite database is built locally from the provided download and build scripts.
 
 ## Package Layout
 
@@ -39,7 +39,7 @@ HuMANet expects a resource directory containing:
 * `drug_annotation/`
 * `pubchem_offline.sqlite`
 
-Only `Humannet_Library_V1_ungrouped.csv` is bundled with the repository/package. All other non-PubChem resources should be downloaded from Zenodo and placed in a resource directory of your choice.
+Only `Humannet_Library_V1_ungrouped.csv` is bundled with the repository/package. All other non-PubChem resources should be downloaded from Zenodo `10.5281/zenodo.22146911`, from where users can access the DBs, and placed in a resource directory of your choice.
 
 By default the pipeline looks for resources in:
 
