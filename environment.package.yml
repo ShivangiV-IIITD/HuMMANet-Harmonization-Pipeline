@@ -1,0 +1,14 @@
+name: humanet-final-pipeline
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pandas>=2.0
+  - numpy>=1.23
+  - requests
+  - openpyxl
+  - rdkit
+  - r-base>=4.2
+  - rpy2>=3.5
+  - pip

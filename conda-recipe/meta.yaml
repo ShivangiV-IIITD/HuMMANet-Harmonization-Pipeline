@@ -1,0 +1,41 @@
+{% set name = "humanet-final-pipeline" %}
+{% set version = "0.1.0" %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  skip: true  # [win]
+
+requirements:
+  build:
+    - python >=3.10,<3.11
+  run:
+    - python >=3.10,<3.11
+    - pandas >=2.0
+    - numpy >=1.23
+    - requests
+    - openpyxl
+    - rdkit
+    - r-base >=4.2
+    - rpy2 >=3.5
+
+test:
+  commands:
+    - humanet-pipeline --help
+    - humanet-bootstrap-pubchem-sqlite --help
+    - humanet-build-pubchem-sqlite --help
+    - humanet-download-pubchem-source-files --help
+
+about:
+  summary: HuMANet metabolite harmonization pipeline with local PubChem SQLite bootstrap workflow
+  license: Proprietary
+
+extra:
+  recipe-maintainers:
+    - nalin

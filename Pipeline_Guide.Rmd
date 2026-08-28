@@ -1,0 +1,230 @@
+---
+title: "HuMANet Pipeline Guide"
+output: html_document
+---
+
+# Overview
+
+This guide describes the publishable HuMANet pipeline package and how to run it in a portable way.
+
+The package is organized as a staged metabolite harmonization workflow. Only the ungrouped HuMANet library is bundled directly with the package. The remaining reference resources are expected to be downloaded separately, while the PubChem SQLite database is built locally from the provided bootstrap scripts.
+
+
+# Package Contents
+
+Core scripts:
+
+- `pipeline.py`
+- `library_lookup_step.py`
+- `refmet_harmonization_step.py`
+- `pubchem_hmdb_reconciliation_step.py`
+- `extended_annotation_step.py`
+- `knowledge_annotation_step.py`
+- `pipeline_utils.py`
+- `resource_config.py`
+
+Support scripts:
+
+- `bootstrap_pubchem_sqlite.py`
+- `download_pubchem_source_files.py`
+- `build_pubchem_sqlite.py`
+- `drug_similarity_step.py`
+- `semicolon_fuzzy_mapper.py`
+- `r_environment_bootstrap.py`
+
+R bridge files:
+
+- `refmet_bridge.R`
+- `stage2_classyfire_bridge.R`
+
+Bundled resource:
+
+- `Databases/Humannet_Library_V1_ungrouped.csv`
+
+External resources expected in the HuMANet resource directory:
+
+- `HMDB_Lite.csv`
+- `MW_Database.csv`
+- `MW_unmapped_Database.csv`
+- `Metabolites_associated_with_species_all_info.csv`
+- `smpdb_metabolite_mapping.pkl`
+- `drug_annotation/`
+
+Not bundled by default:
+
+- `pubchem_offline.sqlite`
+
+The non-PubChem resources are expected to come from Zenodo. The PubChem SQLite database is intended to be built locally after installation.
+
+
+# Stage Layout
+
+The package-level runner uses the following stage numbering:
+
+- Stage `1`: HuMANet library lookup
+- Stage `2`: RefMet-based harmonization
+- Stage `3`: PubChem/HMDB reconciliation
+- Stage `4`: final unresolved-metabolite recovery using additional Metabolomics Workbench and offline PubChem matching
+
+Internally, these correspond to:
+
+- `library_lookup_step.py`
+- `refmet_harmonization_step.py`
+- `pubchem_hmdb_reconciliation_step.py`
+- `extended_annotation_step.py`
+
+`knowledge_annotation_step.py` is used to generate workbook-level annotation sheets such as species, disease, and pathway summaries.
+
+When the library contains duplicate names across sources, lookup priority is:
+
+1. `all_studies_mapped`
+2. `HuMANet_mimedb_all`
+3. `HuMANet_monoculture_all`
+4. `all_studies_nonconfidence`
+
+
+# Input Requirements
+
+The pipeline expects a tabular input file in `.csv` format containing metabolite names.
+
+Required:
+
+- a metabolite name column that becomes `Query_Name`
+
+Optional but recommended:
+
+- study-level metadata
+- source metadata
+- a pre-existing `HuMANet_ID`
+
+If `HuMANet_ID` is not present, it is generated automatically during preprocessing.
+
+
+# Running The Pipeline
+
+The main entry point is:
+
+```bash
+python pipeline.py
+```
+
+or, when installed through the conda package:
+
+```bash
+humanet-pipeline
+```
+
+The runner supports:
+
+- a single stage
+- selected stage combinations
+- a full chained run across all stages
+
+Examples:
+
+```bash
+python pipeline.py --stages 1
+python pipeline.py --stages 2,3
+python pipeline.py --stages 1,2,3,4 --workers 32
+```
+
+To use a custom resource directory, set:
+
+```bash
+export HUMANNET_RESOURCE_DIR=/path/to/HuMANet_resources
+```
+
+When running the full chain, unresolved rows from one stage are passed automatically to the next stage.
+
+
+# Outputs
+
+The pipeline writes stage-specific output files so that runs are restartable and auditable.
+
+Depending on the stage, these may include:
+
+- mapped outputs
+- confidence outputs
+- non-confidence outputs
+- unresolved outputs
+- Excel workbooks
+
+When optional drug annotation is enabled, Stage 5-derived workbooks can additionally include:
+
+- `drugbank_hits`
+- `drugcentral_hits`
+
+Important output-tracking columns include:
+
+- `HuMANet_ID`
+- `Query_Name`
+- `original_query_name`
+- `matched_name`
+- `Study_Folder`
+
+`original_query_name` preserves the original user-facing metabolite name, while `matched_name` stores the name that led to a successful annotation when applicable.
+
+
+# Optional Alternative-Name Matching
+
+The package includes an optional semicolon-based alternative-name matching step exposed through:
+
+- `semicolon_fuzzy_mapper.py`
+
+Within the main runner, this is offered as optional fuzzy matching after Stage 4. It is intended for entries where multiple alternative names are provided in the same field, for example when several semicolon-delimited synonyms appear in a single metabolite name cell.
+
+
+# Optional Drug Similarity Annotation
+
+The package also supports an optional Stage 5 drug-similarity layer based on bundled DrugBank and DrugCentral structure files.
+
+This layer computes chirality-aware Morgan fingerprint Tanimoto similarity between HuMANet metabolite structures and reference drug structures, and reports ranked similarity hits in dedicated workbook sheets.
+
+To enable this layer during pipeline execution, set:
+
+```bash
+export HUMANNET_ENABLE_DRUG_ANNOTATIONS=1
+```
+
+When disabled, the default Stage 5 outputs remain limited to species, disease, and pathway annotations.
+
+
+# Local PubChem SQLite Setup
+
+The later stages of the pipeline use a local offline PubChem SQLite database.
+
+This database is not distributed with the package. Instead, users can build it locally from official PubChem source files.
+
+One-step setup:
+
+```bash
+python bootstrap_pubchem_sqlite.py
+```
+
+Equivalent two-step setup:
+
+```bash
+python download_pubchem_source_files.py
+python build_pubchem_sqlite.py
+```
+
+When installed as a conda package, the same workflow is available through:
+
+```bash
+humanet-bootstrap-pubchem-sqlite
+```
+
+
+# Reproducibility Notes
+
+The package is designed so that:
+
+- bundled resource paths are resolved relative to the installed package location
+- stage outputs are written explicitly to disk
+- individual stages can be rerun without repeating the entire workflow
+- local PubChem resources can be rebuilt reproducibly from public source files
+
+
+# Summary
+
+HuMANet is organized as a portable staged package for metabolite harmonization, unresolved-metabolite annotation recovery, and downstream knowledge-layer integration. The package supports both single-study execution and multi-study batch workflows, while keeping large offline PubChem resources external to the shipped package payload.
