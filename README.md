@@ -4,6 +4,43 @@ This repository contains the HuMANet metabolite harmonization pipeline code, the
 
 Large reference resources are not stored in this repository. The non-PubChem databases are expected to be downloaded from the Zenodo record `10.5281/zenodo.22146911`, from where users can access the DBs, and placed in the HuMANet resource directory, while the PubChem SQLite database is built locally from the provided download and build scripts.
 
+## Installation
+
+Create and activate the conda environment:
+
+```bash
+conda env create -f environment.package.yml
+conda activate HuMMANet
+conda install -c conda-forge \
+  r-dplyr \
+  r-tibble \
+  r-purrr \
+  r-remotes \
+  r-data.table
+```
+
+Install the required R packages inside the active `HuMMANet` environment:
+
+```r
+remotes::install_github('aberHRML/classyfireR')
+remotes::install_github("metabolomicsworkbench/RefMet")
+```
+
+Install the HuMANet command-line tools:
+
+```bash
+pip install --no-build-isolation -e .
+```
+
+The `--no-build-isolation` flag is recommended for offline server environments where pip cannot reach PyPI to create an isolated build environment. The command uses the `setuptools` already available inside the active conda environment.
+
+RefMet name harmonization uses the Metabolomics Workbench RefMet web service through the R `RefMet` package. If that service is slow or intermittent, HuMANet automatically retries smaller request batches. Advanced users can tune this behavior with:
+
+```bash
+export HUMANNET_REFMET_CHUNK_SIZE=25
+export HUMANNET_REFMET_RETRIES=2
+```
+
 ## Package Layout
 
 The repository is organized as:
@@ -154,18 +191,6 @@ HuMANet also preserves:
 
 * `original_query_name`: the original study-facing input name
 * `matched_name`: the name that led to the successful match when applicable
-
-## Development Install
-
-Recommended:
-
-```bash
-conda env create -f environment.package.yml
-conda activate HuMMANet
-pip install --no-build-isolation -e .
-```
-
-The `--no-build-isolation` flag is recommended for offline server environments where pip cannot reach PyPI to create an isolated build environment. The command uses the `setuptools` already available inside the active conda environment.
 
 ## Notes
 

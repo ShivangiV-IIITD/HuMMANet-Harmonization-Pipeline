@@ -24,6 +24,23 @@ except Exception:
 _PUGVIEW_ID_CACHE: Dict[str, Dict[str, Optional[str]]] = {}
 _PUGVIEW_CACHE_LOCK = Lock()
 
+REFMET_OUTPUT_COLUMNS = [
+    "Input.name",
+    "Standardized.name",
+    "Formula",
+    "Exact.mass",
+    "Super.class",
+    "Main.class",
+    "Sub.class",
+    "PubChem_CID",
+    "ChEBI_ID",
+    "HMDB_ID",
+    "LM_ID",
+    "KEGG_ID",
+    "INCHI_KEY",
+    "RefMet_ID",
+]
+
 
 def _clean_scalar(x: object) -> Optional[str]:
     if x is None or pd.isna(x):
@@ -301,8 +318,40 @@ def load_refmet_bridge(r_bridge_path: str):
         return None
     with open(r_bridge_path, "r", encoding="utf-8") as f:
         r_code = f.read()
-    mod = STAP(r_code, "refmet_bridge")
+    try:
+        mod = STAP(r_code, "refmet_bridge")
+    except Exception as exc:
+        msg = str(exc)
+        if "there is no package called" in msg and "RefMet" in msg:
+            raise RuntimeError(
+                "The R package RefMet is required for the RefMet harmonization stage. "
+                "Activate the HuMMANet conda environment, open R, then run: "
+                'install.packages("devtools", repos = "https://cloud.r-project.org"); '
+                "library(devtools); "
+                'install_github("metabolomicsworkbench/RefMet").'
+            ) from exc
+        raise
     return mod.refmet_map_bridge
+
+
+def _blank_refmet_rows(query_names: Sequence[str]) -> pd.DataFrame:
+    out = pd.DataFrame({"Input.name": list(query_names)}, dtype="string")
+    for col in REFMET_OUTPUT_COLUMNS:
+        if col not in out.columns:
+            out[col] = pd.NA
+    return out[REFMET_OUTPUT_COLUMNS].astype("string")
+
+
+def _call_refmet_chunk(fn, query_names: Sequence[str]) -> pd.DataFrame:
+    with conversion.localconverter(default_converter + pandas2ri.converter):
+        r_vec = conversion.py2rpy(pd.Series(list(query_names), dtype="string"))
+
+    r_df = fn(r_vec)
+    with conversion.localconverter(default_converter + pandas2ri.converter):
+        out = conversion.rpy2py(r_df)
+    if not isinstance(out, pd.DataFrame):
+        out = pd.DataFrame(out)
+    return out.astype("string")
 
 
 def map_refmet_queries(query_names: Sequence[str], r_bridge_path: Optional[str]) -> pd.DataFrame:
@@ -318,15 +367,43 @@ def map_refmet_queries(query_names: Sequence[str], r_bridge_path: Optional[str])
     print(f"[REFMET] Query count: {len(query_names)}")
     print(f"[REFMET] Query preview: {preview}")
 
-    with conversion.localconverter(default_converter + pandas2ri.converter):
-        r_vec = conversion.py2rpy(pd.Series(list(query_names), dtype="string"))
+    chunk_size = int(os.getenv("HUMANNET_REFMET_CHUNK_SIZE", "25"))
+    retries = int(os.getenv("HUMANNET_REFMET_RETRIES", "2"))
+    chunk_size = max(1, chunk_size)
+    retries = max(1, retries)
 
-    r_df = fn(r_vec)
-    with conversion.localconverter(default_converter + pandas2ri.converter):
-        out = conversion.rpy2py(r_df)
-    if not isinstance(out, pd.DataFrame):
-        out = pd.DataFrame(out)
+    chunks = [
+        list(query_names)[i:i + chunk_size]
+        for i in range(0, len(query_names), chunk_size)
+    ]
+    frames: List[pd.DataFrame] = []
+    for idx, chunk in enumerate(chunks, start=1):
+        last_error = None
+        for attempt in range(1, retries + 1):
+            try:
+                frames.append(_call_refmet_chunk(fn, chunk))
+                break
+            except Exception as exc:
+                last_error = exc
+                if attempt < retries:
+                    wait = min(5, attempt * 2)
+                    print(
+                        f"[WARN] RefMet chunk {idx}/{len(chunks)} failed on attempt "
+                        f"{attempt}/{retries}; retrying in {wait}s: {exc}"
+                    )
+                    time.sleep(wait)
+                else:
+                    print(
+                        f"[WARN] RefMet chunk {idx}/{len(chunks)} failed after "
+                        f"{retries} attempt(s). These names will continue as unresolved: {last_error}"
+                    )
+                    frames.append(_blank_refmet_rows(chunk))
+
+    out = pd.concat(frames, ignore_index=True) if frames else empty
     out = out.astype("string")
+    for col in REFMET_OUTPUT_COLUMNS:
+        if col not in out.columns:
+            out[col] = pd.NA
 
     print(f"[REFMET] Returned columns: {list(out.columns)}")
     print(f"[REFMET] Returned rows: {len(out)}")
