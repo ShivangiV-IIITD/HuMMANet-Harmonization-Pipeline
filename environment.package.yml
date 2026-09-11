@@ -1,4 +1,4 @@
-name: humanet-final-pipeline
+name: HuMMANet
 channels:
   - conda-forge
   - defaults

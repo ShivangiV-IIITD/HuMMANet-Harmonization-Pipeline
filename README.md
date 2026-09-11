@@ -161,9 +161,11 @@ Recommended:
 
 ```bash
 conda env create -f environment.package.yml
-conda activate humanet_refmet
-pip install -e .
+conda activate HuMMANet
+pip install --no-build-isolation -e .
 ```
+
+The `--no-build-isolation` flag is recommended for offline server environments where pip cannot reach PyPI to create an isolated build environment. The command uses the `setuptools` already available inside the active conda environment.
 
 ## Notes
 
